@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+.npm
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Prisma
+apps/backend/prisma/migrations/
+apps/backend/prisma/*.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# TypeScript
+*.tsbuildinfo
+
+# Puppeteer / Lighthouse cache
+.cache/
+puppeteer-cache/

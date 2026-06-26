@@ -1,0 +1,257 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  SALES
+  SUPPORT
+}
+
+enum LeadStatus {
+  NEW
+  EMAIL_SENT
+  CONTACTED
+  INTERESTED
+  FOLLOW_UP
+  CONVERTED
+  NOT_INTERESTED
+}
+
+enum CrawlStatus {
+  PENDING
+  RUNNING
+  DONE
+  FAILED
+}
+
+enum AuditIssueType {
+  PERFORMANCE
+  SEO
+  ACCESSIBILITY
+  BEST_PRACTICES
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+model User {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  name         String
+  passwordHash String
+  role         Role          @default(SALES)
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  activityLogs ActivityLog[]
+
+  @@map("users")
+}
+
+model Lead {
+  id           String     @id @default(cuid())
+  businessName String
+  website      String?    @unique
+  email        String?
+  phone        String?
+  contactPerson String?
+  city         String?
+  state        String?
+  country      String?
+  industry     String?
+  leadScore    Int?       // 0-100 AI-generated score
+  status       LeadStatus @default(NEW)
+  notes        String?    @db.Text
+  isDeleted    Boolean    @default(false)
+  
+  // Google Discovery Fields
+  placeId      String?    @unique
+  rating       Float?
+  reviews      Int?
+  source       String     @default("MANUAL")
+
+  // Contact Enrichment
+  contactScore   Int?       @default(0)
+  whatsappLink   String?    @db.Text
+  whatsappNumber String?
+  socialLinks    Json?
+  emailFound     Boolean?   @default(false)
+
+  // Chrome Extension AI Audit & Chatbot Discovery Fields
+  opportunityScore Int?
+  websiteScore     Int?
+  seoScore         Int?
+  mobileScore      Int?
+  speedScore       Int?
+  designScore      Int?
+  conversionScore  Int?
+  technology       String?
+  chatbotDetected  Boolean?   @default(false)
+  chatbotType      String?
+  opportunityLevel String?
+
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  websiteAudits WebsiteAudit[]
+  reports       Report[]
+  discoveryResults DiscoveryResult[]
+  activityLogs  ActivityLog[]
+
+  @@index([status])
+  @@index([leadScore])
+  @@index([isDeleted])
+  @@map("leads")
+}
+
+model WebsiteAudit {
+  id                 String      @id @default(cuid())
+  leadId             String
+  targetUrl          String
+  status             CrawlStatus @default(PENDING)
+  pageTitle          String?     @db.Text
+  metaDescription    String?     @db.Text
+  hasSsl             Boolean?
+  isMobileResponsive Boolean?
+  hasContactForm     Boolean?
+  technologies       Json?
+  socialLinks        Json?
+  screenshotPath     String?
+  performanceScore   Float?
+  seoScore           Float?
+  accessibilityScore Float?
+  bestPracticesScore Float?
+  aiSummary          String?     @db.Text
+  rawJson            Json?
+  errorMsg           String?     @db.Text
+  startedAt          DateTime?
+  completedAt        DateTime?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  lead        Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  issues      AuditIssue[]
+  reports     Report[]
+
+  @@index([leadId])
+  @@index([status])
+  @@map("website_audits")
+}
+
+model AuditIssue {
+  id             String         @id @default(cuid())
+  websiteAuditId String
+  type           AuditIssueType
+  title          String
+  description    String?        @db.Text
+  scoreImpact    Float?
+  createdAt      DateTime       @default(now())
+
+  websiteAudit   WebsiteAudit   @relation(fields: [websiteAuditId], references: [id], onDelete: Cascade)
+
+  @@index([websiteAuditId])
+  @@map("audit_issues")
+}
+
+model Report {
+  id             String   @id @default(cuid())
+  leadId         String
+  websiteAuditId String?
+  reportUrl      String?
+  generatedAt    DateTime @default(now())
+
+  lead         Lead          @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  websiteAudit WebsiteAudit? @relation(fields: [websiteAuditId], references: [id], onDelete: SetNull)
+
+  @@index([leadId])
+  @@index([websiteAuditId])
+  @@map("reports")
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  leadId    String?
+  action    String
+  details   Json?
+  createdAt DateTime @default(now())
+
+  user             User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  lead             Lead?             @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  discoveryResults DiscoveryResult[]
+
+  @@index([userId])
+  @@index([leadId])
+  @@map("activity_logs")
+}
+
+model SystemSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+
+  @@map("system_settings")
+}
+
+model BlacklistedBusiness {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  @@map("blacklisted_businesses")
+}
+
+model BlacklistedDomain {
+  id        String   @id @default(cuid())
+  domain    String   @unique
+  createdAt DateTime @default(now())
+
+  @@map("blacklisted_domains")
+}
+
+model DiscoveryResult {
+  id                      String      @id @default(cuid())
+  activityLogId           String
+  businessName            String
+  website                 String?     @db.Text
+  validationStatus        String      // "APPROVED" | "REJECTED"
+  rejectionGate           String?
+  rejectionReason         String?     @db.Text
+  opportunityScore        Int?
+  aiScore                 Int?
+  activityConfidenceScore Int?
+  leadId                  String?     // Null if rejected
+
+  createdAt               DateTime    @default(now())
+
+  activityLog             ActivityLog @relation(fields: [activityLogId], references: [id], onDelete: Cascade)
+  lead                    Lead?       @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  @@index([activityLogId])
+  @@index([leadId])
+  @@index([validationStatus])
+  @@map("discovery_results")
+}
+
+model EmailTemplate {
+  id        String   @id @default(cuid())
+  name      String
+  subject   String
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("email_templates")
+}
