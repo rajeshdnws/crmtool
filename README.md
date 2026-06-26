@@ -82,7 +82,13 @@ npm run dev:backend
 # Terminal 2 — Frontend
 npm run dev:frontend
 ```
-
+# production mode
+```bash
+ npm run build:frontend
+ npm run start:frontend
+ npm run build:backend
+ npm run start:backend
+```
 - Frontend: http://localhost:3000
 - Backend API: http://localhost:4000/api
 - Prisma Studio: `npm run db:studio`
