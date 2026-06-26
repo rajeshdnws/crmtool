@@ -23,6 +23,7 @@ export const getLeads = async (req: Request, res: Response): Promise<void> => {
     const hasEmail = req.query.hasEmail === 'true';
     const hasPhone = req.query.hasPhone === 'true';
     const hasWhatsapp = req.query.hasWhatsapp === 'true';
+    const emailSent = req.query.emailSent === 'true';
 
     const sortBy = req.query.sortBy  ? String(req.query.sortBy)  : 'createdAt';
     const sortOrder = req.query.sortOrder ? String(req.query.sortOrder) : 'desc';
@@ -42,6 +43,15 @@ export const getLeads = async (req: Request, res: Response): Promise<void> => {
     };
 
     const andConditions: any[] = [];
+
+    if (emailSent) {
+      andConditions.push({
+        OR: [
+          { emailSent: true },
+          { status: 'EMAIL_SENT' }
+        ]
+      });
+    }
 
     if (hasEmail) {
       andConditions.push({
@@ -214,11 +224,11 @@ export const updateLead = async (req: Request, res: Response): Promise<void> => 
 
     const {
       businessName, website, email, phone,
-      city, state, country, industry, notes, status, leadScore,
+      city, state, country, industry, notes, status, leadScore, emailSent,
     } = req.body as Partial<{
       businessName: string; website: string; email: string; phone: string;
       city: string; state: string; country: string; industry: string; 
-      notes: string; status: LeadStatus; leadScore: number;
+      notes: string; status: LeadStatus; leadScore: number; emailSent: boolean;
     }>;
 
     const lead = await prisma.lead.update({
@@ -235,6 +245,8 @@ export const updateLead = async (req: Request, res: Response): Promise<void> => 
         ...(notes !== undefined && { notes }),
         ...(status !== undefined && { status }),
         ...(leadScore !== undefined && { leadScore }),
+        ...(emailSent !== undefined && { emailSent: Boolean(emailSent) }),
+        ...(emailSent === true && existing.status === 'NEW' && status === undefined && { status: 'EMAIL_SENT' }),
       },
     });
 
@@ -473,13 +485,13 @@ export const sendOutreachEmailController = async (req: Request, res: Response): 
 
     await sendEmailService(lead.email, subject, body);
 
-    // Update lead status to EMAIL_SENT if it was NEW
-    if (lead.status === 'NEW') {
-      await prisma.lead.update({
-        where: { id },
-        data: { status: 'EMAIL_SENT' },
-      });
-    }
+    await prisma.lead.update({
+      where: { id },
+      data: {
+        emailSent: true,
+        ...(lead.status === 'NEW' ? { status: 'EMAIL_SENT' } : {}),
+      },
+    });
 
     // Log the activity
     await prisma.activityLog.create({
@@ -542,12 +554,13 @@ export const bulkSendOutreachEmailController = async (req: Request, res: Respons
 
         await sendEmailService(lead.email, personalizedSubject, personalizedBody);
         
-        if (lead.status === 'NEW') {
-          await prisma.lead.update({
-            where: { id: lead.id },
-            data: { status: 'EMAIL_SENT' },
-          });
-        }
+        await prisma.lead.update({
+          where: { id: lead.id },
+          data: {
+            emailSent: true,
+            ...(lead.status === 'NEW' ? { status: 'EMAIL_SENT' } : {}),
+          },
+        });
         sentCount++;
       } catch (err: any) {
         errors.push(`Failed to send to ${lead.email}: ${err.message}`);

@@ -74,6 +74,7 @@ model Lead {
   status       LeadStatus @default(NEW)
   notes        String?    @db.Text
   isDeleted    Boolean    @default(false)
+  emailSent    Boolean    @default(false)
   
   // Google Discovery Fields
   placeId      String?    @unique
